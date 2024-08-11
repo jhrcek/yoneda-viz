@@ -1,0 +1,90 @@
+table {
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border: 1px solid black;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    line-height: 20px;
+    /* This ensures the text is vertically centered */
+    text-align: center;
+}
+
+thead th {
+    background-color: #f2f2f2;
+}
+
+a {
+    text-decoration: none;
+    color: sienna;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+a:visited {
+    color: sienna;
+}
+
+#size-label {
+    display: inline-block;
+    width: 120px;
+}
+
+#top-container {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+
+    #explanation {
+        width: 40%;
+    }
+}
+
+#rel {
+    padding-top: 20px;
+    height: 250px;
+    width: 250px;
+}
+
+.indent {
+    padding-left: 20px;
+}
+
+#graph {
+    padding-top: 10px;
+}
+
+.pager {
+    width: 300px;
+}
+
+/* Details styles taken from https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details#try_it */
+details {
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 0.5em 0.5em 0;
+}
+
+summary {
+    font-weight: bold;
+    margin: -0.5em -0.5em 0;
+    padding: 0.5em;
+}
+
+details[open] {
+    padding: 0.5em;
+}
+
+details[open] summary {
+    border-bottom: 1px solid #aaa;
+    margin-bottom: 0.5em;
+}
+
+.error {
+    color: red;
+}
