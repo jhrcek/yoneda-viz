@@ -1,10 +1,12 @@
 module Main exposing (main)
 
 import Browser
+import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as A
 import Html.Events as E
 import Ports
+import Set exposing (Set)
 
 
 main : Program () Model Msg
@@ -24,6 +26,28 @@ type alias Model =
 
 type alias Category =
     { objectCount : Int
+    , morphisms : Dict ( Int, Int ) (Set Int) -- (domId, codId) -> Set morphismId
+    , morphismIdGen : Int
+    }
+
+
+addMorphism : Int -> Int -> Category -> Category
+addMorphism domId codId cat =
+    { cat
+        | morphisms =
+            Dict.update ( domId, codId )
+                (\morpSet ->
+                    Just
+                        (case morpSet of
+                            Nothing ->
+                                Set.singleton cat.morphismIdGen
+
+                            Just ms ->
+                                Set.insert cat.morphismIdGen ms
+                        )
+                )
+                cat.morphisms
+        , morphismIdGen = cat.morphismIdGen + 1
     }
 
 
@@ -31,7 +55,12 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     let
         model =
-            { cat = { objectCount = 4 } }
+            { cat =
+                { objectCount = 4
+                , morphisms = Dict.empty
+                , morphismIdGen = 0
+                }
+            }
     in
     ( model, renderGraph model.cat )
 
@@ -48,8 +77,18 @@ renderDot cat =
             List.range 1 cat.objectCount |> List.map String.fromInt
 
         edgeLines =
-            -- TODO
-            []
+            cat.morphisms
+                |> Dict.foldl
+                    (\( domId, codId ) morphs acc ->
+                        Set.foldl
+                            (\morpId acc2 ->
+                                (String.fromInt domId ++ "->" ++ String.fromInt codId ++ "[label=" ++ String.fromInt morpId ++ "]")
+                                    :: acc2
+                            )
+                            acc
+                            morphs
+                    )
+                    []
     in
     String.join ";" <|
         "digraph G{graph[rankdir=BT;splines=true;overlap=false]"
@@ -60,13 +99,19 @@ renderDot cat =
 
 type Msg
     = SetObjectCount Int
+    | AddMorphism Int Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SetObjectCount newCount ->
+            -- TODO remove all objects/morphisms that no longer fit
             updateCat (setObjectCount newCount) model
+
+        AddMorphism domId codId ->
+            -- TODO cap this at, say 10 morphisms per pair of objects
+            updateCat (addMorphism domId codId) model
 
 
 updateCat : (Category -> Category) -> Model -> ( Model, Cmd Msg )
@@ -97,6 +142,7 @@ view model =
         [ Html.div [ A.id "top-container" ]
             [ Html.div [ A.id "rel-and-controls" ]
                 [ objCountInputView model.cat.objectCount
+                , viewObjects model.cat
                 ]
             , Html.div [ A.id "explanation" ]
                 [ Html.text "TODO" ]
@@ -124,3 +170,50 @@ objCountInputView objectCount =
                 []
             ]
         ]
+
+
+viewObjects : Category -> Html Msg
+viewObjects cat =
+    let
+        objects =
+            List.range 1 cat.objectCount
+    in
+    Html.div [ A.id "rel" ]
+        [ Html.table []
+            [ Html.thead []
+                [ Html.tr [] <|
+                    Html.th [] [{- empty top-left corner -}]
+                        :: List.map headerCell objects
+                ]
+            , Html.tbody [] <|
+                List.map
+                    (\rowIdx ->
+                        Html.tr [] <|
+                            headerCell rowIdx
+                                :: List.map
+                                    (\colIdx ->
+                                        Html.td []
+                                            [ Html.button [ E.onClick (AddMorphism rowIdx colIdx) ] [ Html.text "+" ]
+                                            , Html.text <|
+                                                String.fromInt <|
+                                                    (if rowIdx == colIdx then
+                                                        -- identity morphism
+                                                        1
+
+                                                     else
+                                                        0
+                                                    )
+                                                        + Set.size (Maybe.withDefault Set.empty (Dict.get ( rowIdx, colIdx ) cat.morphisms))
+                                            , Html.button [] [ Html.text "-" ]
+                                            ]
+                                    )
+                                    objects
+                    )
+                    objects
+            ]
+        ]
+
+
+headerCell : Int -> Html msg
+headerCell i =
+    Html.th [] [ Html.text (String.fromInt i) ]
