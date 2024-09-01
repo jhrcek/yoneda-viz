@@ -2,6 +2,7 @@ module Category exposing
     ( Category
     , addMorphism
     , addObject
+    , deleteMorphism
     , deleteObject
     , empty
     , getHomSets
@@ -120,6 +121,15 @@ addMorphism domId codId cat =
     }
 
 
+deleteMorphism : Int -> Category -> Category
+deleteMorphism morphId cat =
+    { cat
+        | morphisms = Dict.remove morphId cat.morphisms
+        , dom = Dict.remove morphId cat.dom
+        , cod = Dict.remove morphId cat.cod
+    }
+
+
 renderDot : Category -> String
 renderDot cat =
     let
@@ -168,5 +178,6 @@ renderDot cat =
     String.join ";" <|
         "digraph G{graph[rankdir=BT;splines=true;overlap=false]"
             :: "node[shape=circle;width=0.3;fixedsize=true]"
+            :: "edge[arrowsize=0.5]"
             :: (nodeLines ++ edgeLines)
             ++ [ "}" ]

@@ -30,61 +30,52 @@ a:visited {
     color: sienna;
 }
 
-#size-label {
-    display: inline-block;
-    width: 120px;
-}
-
 #top-container {
     display: flex;
     gap: 20px;
     padding: 20px;
 
-    #explanation {
-        width: 40%;
+    #controls {
+        width: 50%;
+    }
+
+    #graph {
+        width: 50%;
+        padding-top: 10px;
     }
 }
 
-#rel {
-    padding-top: 20px;
-    height: 250px;
-    width: 250px;
+.m-cell {
+    width: 80px;
+    height: 80px;
 }
 
-.indent {
-    padding-left: 20px;
+.m-controls {
+    display: flex;
+    align-items: flex-start;
+
+    .m-child {
+        flex: 1;
+        align-self: start;
+    }
+
+    .m-child>table {
+        display: block;
+    }
 }
 
-#graph {
-    padding-top: 10px;
-}
 
-.pager {
-    width: 300px;
-}
+.m-editor {
+    width: 200px;
+    height: 200px;
+    position: relative;
+    border: solid 1px #ccc;
 
-/* Details styles taken from https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details#try_it */
-details {
-    border: 1px solid #aaa;
-    border-radius: 4px;
-    padding: 0.5em 0.5em 0;
-}
-
-summary {
-    font-weight: bold;
-    margin: -0.5em -0.5em 0;
-    padding: 0.5em;
-}
-
-details[open] {
-    padding: 0.5em;
-}
-
-details[open] summary {
-    border-bottom: 1px solid #aaa;
-    margin-bottom: 0.5em;
-}
-
-.error {
-    color: red;
+    .close {
+        position: absolute;
+        border: none;
+        cursor: pointer;
+        top: 0px;
+        right: 0px;
+    }
 }

@@ -4,14 +4,13 @@ An experimental interactive UI trying to help people understand [Yoneda lemma](h
 
 ## (Ideas for) features
 
-- [] Category editor
+- [ ] Category editor
     - [ ] Specify (small) number of objects from (0?) 1 - 10(?)
     - [ ] Specify number of morphisms going between
     - [ ] Specify composition rule
         - [ ] Show whether it's associative
 
-
-- [] Set / function editor
+- [ ] Set / function editor
    - [ ] Specify domain and codomoain
    - [ ] Specify how elements from the domain map to elements in codomain
 
