@@ -4,6 +4,7 @@ table {
 
 th,
 td {
+    /* TODO use class instead of tag selector */
     border: 1px solid black;
     width: 20px;
     height: 20px;
@@ -46,36 +47,16 @@ a:visited {
 }
 
 .m-cell {
-    width: 80px;
-    height: 80px;
+    width: 150px;
+    height: 150px;
 }
 
-.m-controls {
-    display: flex;
-    align-items: flex-start;
-
-    .m-child {
-        flex: 1;
-        align-self: start;
-    }
-
-    .m-child>table {
-        display: block;
-    }
-}
-
-
-.m-editor {
-    width: 200px;
-    height: 200px;
+.m-edit {
     position: relative;
-    border: solid 1px #ccc;
 
-    .close {
+    .m-add {
         position: absolute;
-        border: none;
-        cursor: pointer;
-        top: 0px;
+        bottom: 0px;
         right: 0px;
     }
 }
