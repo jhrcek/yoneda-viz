@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Yoneda Viz</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="css/style.css">
+  <script src="js/elm.js"></script>
+  <script src="https://unpkg.com/@viz-js/viz@3.8.0/lib/viz-standalone.js"></script>
+</head>
+
+<body>
+  <main></main>
+  <script>
+    var app = Elm.Main.init({
+      node: document.querySelector('main')
+    })
+
+    const vizRenderOptions = function (engine) {
+      return {
+        engine: engine
+      }
+    };
+    app.ports.renderDot.subscribe(args => {
+      Viz.instance().then(viz => {
+        const graph = document.getElementById('graph');
+        graph.innerHTML = '';
+        const svg = viz.renderSVGElement(args.dotSource, vizRenderOptions(args.engine));
+        graph.appendChild(svg);
+      });
+    });
+  </script>
+</body>
+
+</html>

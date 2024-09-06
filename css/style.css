@@ -1,0 +1,62 @@
+table {
+    border-collapse: collapse;
+}
+
+th,
+td {
+    /* TODO use class instead of tag selector */
+    border: 1px solid black;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    line-height: 20px;
+    /* This ensures the text is vertically centered */
+    text-align: center;
+}
+
+thead th {
+    background-color: #f2f2f2;
+}
+
+a {
+    text-decoration: none;
+    color: sienna;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+a:visited {
+    color: sienna;
+}
+
+#top-container {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+
+    #controls {
+        width: 50%;
+    }
+
+    #graph {
+        width: 50%;
+        padding-top: 10px;
+    }
+}
+
+.m-cell {
+    width: 150px;
+    height: 150px;
+}
+
+.m-edit {
+    position: relative;
+
+    .m-add {
+        position: absolute;
+        bottom: 0px;
+        right: 0px;
+    }
+}
