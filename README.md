@@ -5,10 +5,11 @@ An experimental interactive UI trying to help people understand [Yoneda lemma](h
 ## (Ideas for) features
 
 - [ ] Category editor
-    - [ ] Specify (small) number of objects from (0?) 1 - 10(?)
-    - [ ] Specify number of morphisms going between
+    - [x] Specify (small) number of objects from (0?) 1 - 10(?)
+    - [x] Specify hom sets
     - [ ] Specify composition rule
         - [ ] Show whether it's associative
+    - [ ] Checkbox to enable/disable rendering of identity morphisms (in diagram, composition table and hom set editor)
 
 - [ ] Set / function editor
    - [ ] Specify domain and codomoain

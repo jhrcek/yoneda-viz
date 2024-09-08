@@ -130,7 +130,7 @@ viewHomSetTable { cat, editState } =
         homSets =
             Cat.getHomSets cat
     in
-    Html.div [ A.id "rel" ]
+    Html.div []
         [ Html.h3 [] [ Html.text "Morphisms" ]
         , Html.table []
             [ Html.thead []

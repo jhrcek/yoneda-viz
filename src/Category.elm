@@ -1,17 +1,25 @@
 module Category exposing
     ( Category
+    , Morphism(..)
     , addMorphism
     , addObject
     , deleteMorphism
     , deleteObject
     , empty
     , getHomSets
+    , listFirstCompositionMorphisms
+    , listSecondCompositionMorphisms
     , renderDot
     , setObjectLabel
     )
 
 import Dict exposing (Dict)
 import Set exposing (Set)
+
+
+
+-- INVARIANT:
+-- morphisms, dom, cod all contains same keys -- TODO perhaps enforce this by storing all in a single Dict?
 
 
 type alias Category =
@@ -31,6 +39,34 @@ type alias Category =
     , objectIdGen : Int
     , morphismIdGen : Int
     }
+
+
+type Morphism
+    = Identity Int -- Object ID
+    | NonIdentity NonIdM
+
+
+type alias NonIdM =
+    { mId : Int
+    , domId : Int
+    , codId : Int
+    }
+
+
+{-| List of morphisms for composition table.
+By first I mean f in (f :: A -> B, g :: B -> C)
+
+Ordered first by codomain, then by domain.
+
+-}
+listFirstCompositionMorphisms : Bool -> Category -> List Morphism
+listFirstCompositionMorphisms includeIdentities cat =
+    []
+
+
+listSecondCompositionMorphisms : Bool -> Category -> List Morphism
+listSecondCompositionMorphisms includeIdentities cat =
+    []
 
 
 {-| (domId, codId) -> Set morphism IDs
