@@ -1,15 +1,20 @@
 module Category exposing
     ( Category
+    , Morphism(..)
     , addMorphism
     , addObject
+    , defineComposition
     , deleteMorphism
     , deleteObject
     , empty
     , getHomSets
+    , listComposableMorphisms
     , renderDot
     , setObjectLabel
+    , undefineComposition
     )
 
+import Basics.Extra exposing (uncurry)
 import Dict exposing (Dict)
 import Set exposing (Set)
 
@@ -17,20 +22,99 @@ import Set exposing (Set)
 type alias Category =
     { -- | object ID -> label
       objects : Dict Int String
-    , -- | morphism ID -> label. We only explicitly represents non-Identity morphisms.
+    , -- | morphism ID -> NonIdM. We only explicitly represents non-Identity morphisms.
       -- Identities are implicitly assumed present
-      morphisms : Dict Int String
-    , -- | morphism ID -> domain object ID
-      dom : Dict Int Int
-    , -- | morphism ID -> codomain object ID
-      cod : Dict Int Int
+      morphisms : Dict Int NonIdM
     , -- | (morphism ID : A -> B, morphism ID : B -> C) -> morphism ID : A -> C
+      --  Since 2 morphisms A -> X, X -> A can compose to identity on A, we represent such compositions as negated objectID
+      -- TODO come up with a better way to represent identity morphisms here ^
       composition : Dict ( Int, Int ) Int
-
-    -- auto-increment ID generating sequences
-    , objectIdGen : Int
+    , -- | auto-increment ID generating sequences
+      objectIdGen : Int
     , morphismIdGen : Int
     }
+
+
+type Morphism
+    = Identity Int {- <- obj ID -}
+    | NonIdentity Int {- <- morp ID -} NonIdM
+
+
+getDomId : Morphism -> Int
+getDomId morph =
+    case morph of
+        Identity objId ->
+            objId
+
+        NonIdentity _ { domId } ->
+            domId
+
+
+getCodId : Morphism -> Int
+getCodId morph =
+    case morph of
+        Identity objId ->
+            objId
+
+        NonIdentity _ { codId } ->
+            codId
+
+
+type alias NonIdM =
+    { domId : Int
+    , codId : Int
+    , label : String
+    }
+
+
+{-| List morphisms for composition table.
+We return 2 lists:
+
+  - rows (containing Xs from X : A -> B ; Y : B -> C)
+  - columns (containing Ys from X : A -> B ; Y : B -> C)
+
+The rows are sorted by codomain ID, then by domain ID
+The columns are sorted by domain ID, then by codomain ID so we can get composition table "clustered"
+around "the object trhough which the morphisms are being composed"
+
+-}
+listComposableMorphisms : Bool -> Category -> { rows : List Morphism, columns : List Morphism }
+listComposableMorphisms includeIdentities cat =
+    if includeIdentities then
+        let
+            ms =
+                List.map (uncurry NonIdentity) (Dict.toList cat.morphisms)
+                    ++ List.map Identity (Dict.keys cat.objects)
+
+            rows =
+                List.sortBy (\m -> ( getCodId m, getDomId m )) ms
+
+            columns =
+                List.sortBy (\m -> ( getDomId m, getCodId m )) ms
+        in
+        { rows = rows, columns = columns }
+
+    else
+        let
+            ms =
+                Dict.toList cat.morphisms
+
+            -- TODO calculate fiber product more efficiently
+            rows =
+                ms
+                    -- Only keep morphisms that can be composed with some non-ID morph
+                    |> List.filter (\( _, first ) -> List.any (\( _, second ) -> first.codId == second.domId) ms)
+                    |> List.sortBy (\( _, { domId, codId } ) -> ( codId, domId ))
+                    |> List.map (\( mId, m ) -> NonIdentity mId m)
+
+            columns =
+                ms
+                    -- Only keep morphisms that can be composed with some non-ID morph
+                    |> List.filter (\( _, second ) -> List.any (\( _, first ) -> first.codId == second.domId) ms)
+                    |> List.sortBy (\( _, { domId, codId } ) -> ( domId, codId ))
+                    |> List.map (\( mId, m ) -> NonIdentity mId m)
+        in
+        { rows = rows, columns = columns }
 
 
 {-| (domId, codId) -> Set morphism IDs
@@ -38,27 +122,16 @@ type alias Category =
 getHomSets : Category -> Dict ( Int, Int ) (Set Int)
 getHomSets cat =
     Dict.foldl
-        (\morphId _ acc ->
-            case Dict.get morphId cat.dom of
-                Just domId ->
-                    case Dict.get morphId cat.cod of
-                        Just codId ->
-                            Dict.update ( domId, codId )
-                                (\maybeSet ->
-                                    case maybeSet of
-                                        Just set ->
-                                            Just (Set.insert morphId set)
-
-                                        Nothing ->
-                                            Just (Set.singleton morphId)
-                                )
-                                acc
+        (\morphId { domId, codId } ->
+            Dict.update ( domId, codId )
+                (\maybeSet ->
+                    case maybeSet of
+                        Just set ->
+                            Just (Set.insert morphId set)
 
                         Nothing ->
-                            acc
-
-                Nothing ->
-                    acc
+                            Just (Set.singleton morphId)
+                )
         )
         Dict.empty
         cat.morphisms
@@ -68,8 +141,6 @@ empty : Category
 empty =
     { objects = Dict.empty
     , morphisms = Dict.empty
-    , dom = Dict.empty
-    , cod = Dict.empty
     , composition = Dict.empty
     , objectIdGen = 0
     , morphismIdGen = 0
@@ -99,10 +170,26 @@ setObjectLabel objId label cat =
 
 deleteObject : Int -> Category -> Category
 deleteObject objId cat =
+    let
+        ( msToDelete, msToKeep ) =
+            Dict.partition (\_ m -> m.domId == objId || m.codId == objId) cat.morphisms
+
+        morphIdsToDelete =
+            Set.fromList (Dict.keys msToDelete)
+    in
     { cat
         | objects = Dict.remove objId cat.objects
-        , dom = Dict.filter (\_ domId -> domId /= objId) cat.dom
-        , cod = Dict.filter (\_ codId -> codId /= objId) cat.cod
+        , morphisms = msToKeep
+        , composition =
+            Dict.filter
+                (\( firstId, secondId ) compId ->
+                    not
+                        (Set.member firstId morphIdsToDelete
+                            || Set.member secondId morphIdsToDelete
+                            || Set.member compId morphIdsToDelete
+                        )
+                )
+                cat.composition
     }
 
 
@@ -114,9 +201,7 @@ addMorphism domId codId cat =
     in
     { cat
       -- TODO set morphism labels to sensible default?
-        | morphisms = Dict.insert morphId "" cat.morphisms
-        , dom = Dict.insert morphId domId cat.dom
-        , cod = Dict.insert morphId codId cat.cod
+        | morphisms = Dict.insert morphId { domId = domId, codId = codId, label = "" } cat.morphisms
         , morphismIdGen = morphId + 1
     }
 
@@ -125,9 +210,23 @@ deleteMorphism : Int -> Category -> Category
 deleteMorphism morphId cat =
     { cat
         | morphisms = Dict.remove morphId cat.morphisms
-        , dom = Dict.remove morphId cat.dom
-        , cod = Dict.remove morphId cat.cod
+        , composition =
+            Dict.filter
+                (\( firstId, secondId ) compId ->
+                    not (morphId == firstId || morphId == secondId || morphId == compId)
+                )
+                cat.composition
     }
+
+
+defineComposition : Int -> Int -> Int -> Category -> Category
+defineComposition morphId1 morphId2 morphId cat =
+    { cat | composition = Dict.insert ( morphId1, morphId2 ) morphId cat.composition }
+
+
+undefineComposition : Int -> Int -> Category -> Category
+undefineComposition morphId1 morphId2 cat =
+    { cat | composition = Dict.remove ( morphId1, morphId2 ) cat.composition }
 
 
 renderDot : Category -> String
@@ -143,34 +242,24 @@ renderDot cat =
 
         edgeLines =
             Dict.foldl
-                (\morphId lbl acc ->
-                    case Dict.get morphId cat.dom of
-                        Just domId ->
-                            case Dict.get morphId cat.cod of
-                                Just codId ->
-                                    let
-                                        morphLbl =
-                                            if String.isEmpty lbl then
-                                                "<f<sub>" ++ String.fromInt morphId ++ "</sub>>"
+                (\morphId { label, domId, codId } ->
+                    let
+                        morphLbl =
+                            if String.isEmpty label then
+                                "<f<sub>" ++ String.fromInt morphId ++ "</sub>>"
 
-                                            else
-                                                lbl
-                                    in
-                                    -- TODO will need some escaping of label string?
-                                    (String.fromInt domId
-                                        ++ "->"
-                                        ++ String.fromInt codId
-                                        ++ "[label="
-                                        ++ morphLbl
-                                        ++ "]"
-                                    )
-                                        :: acc
-
-                                Nothing ->
-                                    acc
-
-                        Nothing ->
-                            acc
+                            else
+                                label
+                    in
+                    -- TODO will need some escaping of label string?
+                    (::)
+                        (String.fromInt domId
+                            ++ "->"
+                            ++ String.fromInt codId
+                            ++ "[label="
+                            ++ morphLbl
+                            ++ "]"
+                        )
                 )
                 []
                 cat.morphisms
