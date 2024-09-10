@@ -23,8 +23,7 @@ main =
 type alias Model =
     { cat : Category
     , editState : EditState
-    , -- TODO this should work across: graph, composition table, hom set table
-      showIdentities : Bool
+    , showIdentities : Bool
     }
 
 
@@ -42,12 +41,12 @@ init _ =
             , showIdentities = False
             }
     in
-    ( model, renderGraph model.cat )
+    ( model, renderGraph model.showIdentities model.cat )
 
 
-renderGraph : Category -> Cmd msg
-renderGraph cat =
-    Ports.renderDot { engine = "dot", dotSource = Cat.renderDot cat }
+renderGraph : Bool -> Category -> Cmd msg
+renderGraph showIdentities cat =
+    Ports.renderDot { engine = "dot", dotSource = Cat.renderDot showIdentities cat }
 
 
 type Msg
@@ -83,7 +82,13 @@ update msg model =
             ( { model | editState = newState }, Cmd.none )
 
         ToggleShowIdentities ->
-            ( { model | showIdentities = not model.showIdentities }, Cmd.none )
+            let
+                newShowIdentities =
+                    not model.showIdentities
+            in
+            ( { model | showIdentities = newShowIdentities }
+            , renderGraph newShowIdentities model.cat
+            )
 
         DefineComposition morpId1 morpId2 morpId ->
             updateCat (Cat.defineComposition morpId1 morpId2 morpId) model
@@ -102,7 +107,7 @@ updateCat f model =
             f model.cat
     in
     ( { model | cat = newCat }
-    , renderGraph newCat
+    , renderGraph model.showIdentities newCat
     )
 
 
@@ -149,7 +154,7 @@ viewObjectControls cat =
 
 
 viewHomSetTable : Model -> Html Msg
-viewHomSetTable { cat, editState } =
+viewHomSetTable { cat, editState, showIdentities } =
     let
         objects =
             Dict.toList cat.objects
@@ -180,7 +185,7 @@ viewHomSetTable { cat, editState } =
                                                 A.class "m-cell"
 
                                             addIdMorphism =
-                                                if domId == codId then
+                                                if showIdentities && domId == codId then
                                                     (::) (idMorphism domLbl)
 
                                                 else

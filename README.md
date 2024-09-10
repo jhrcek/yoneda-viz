@@ -9,7 +9,7 @@ An experimental interactive UI trying to help people understand [Yoneda lemma](h
     - [x] Specify hom sets
     - [x] Specify composition rule
         - [ ] Show whether it's associative
-    - [ ] Checkbox to enable/disable rendering of identity morphisms (in diagram, composition table and hom set editor)
+    - [x] Checkbox to enable/disable rendering of identity morphisms (in diagram, composition table and hom set editor)
 
 - [ ] Set / function editor
    - [ ] Specify domain and codomoain

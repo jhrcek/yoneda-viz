@@ -229,16 +229,19 @@ undefineComposition morphId1 morphId2 cat =
     { cat | composition = Dict.remove ( morphId1, morphId2 ) cat.composition }
 
 
-renderDot : Category -> String
-renderDot cat =
+renderDot : Bool -> Category -> String
+renderDot showIdentities cat =
     let
-        nodeLines =
+        objList =
             Dict.toList cat.objects
-                |> List.map
-                    (\( objId, lbl ) ->
-                        -- TODO will need some escaping of label string?
-                        String.fromInt objId ++ "[label=" ++ lbl ++ "]"
-                    )
+
+        nodeLines =
+            List.map
+                (\( objId, lbl ) ->
+                    -- TODO will need some escaping of label string?
+                    String.fromInt objId ++ "[label=" ++ lbl ++ "]"
+                )
+                objList
 
         edgeLines =
             Dict.foldl
@@ -251,18 +254,34 @@ renderDot cat =
                             else
                                 label
                     in
-                    -- TODO will need some escaping of label string?
                     (::)
                         (String.fromInt domId
                             ++ "->"
                             ++ String.fromInt codId
                             ++ "[label="
+                            -- TODO will need some escaping of label string?
                             ++ morphLbl
                             ++ "]"
                         )
                 )
                 []
                 cat.morphisms
+                ++ (if showIdentities then
+                        List.map
+                            (\( objId, objLbl ) ->
+                                String.fromInt objId
+                                    ++ "->"
+                                    ++ String.fromInt objId
+                                    ++ "[label=<id<sub>"
+                                    -- TODO will need some escaping of label string?
+                                    ++ objLbl
+                                    ++ "</sub>>]"
+                            )
+                            objList
+
+                    else
+                        []
+                   )
     in
     String.join ";" <|
         "digraph G{graph[rankdir=BT;splines=true;overlap=false]"
