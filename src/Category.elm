@@ -7,6 +7,8 @@ module Category exposing
     , deleteMorphism
     , deleteObject
     , empty
+    , getCodId
+    , getDomId
     , getHomSets
     , listComposableMorphisms
     , renderDot

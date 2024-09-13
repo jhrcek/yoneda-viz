@@ -71,8 +71,8 @@ update msg model =
             -- TODO cap this at, say 10 objects
             updateCat (Cat.deleteObject objId) model
 
-        DeleteMorphism morpId ->
-            updateCat (Cat.deleteMorphism morpId) model
+        DeleteMorphism morphId ->
+            updateCat (Cat.deleteMorphism morphId) model
 
         AddMorphism domId codId ->
             -- TODO cap this at, say 10 morphisms per pair of objects
@@ -90,11 +90,11 @@ update msg model =
             , renderGraph newShowIdentities model.cat
             )
 
-        DefineComposition morpId1 morpId2 morpId ->
-            updateCat (Cat.defineComposition morpId1 morpId2 morpId) model
+        DefineComposition morphId1 morphId2 morphId ->
+            updateCat (Cat.defineComposition morphId1 morphId2 morphId) model
 
-        UndefineComposition morpId1 morpId2 ->
-            updateCat (Cat.undefineComposition morpId1 morpId2) model
+        UndefineComposition morphId1 morphId2 ->
+            updateCat (Cat.undefineComposition morphId1 morphId2) model
 
         NoOp ->
             ( model, Cmd.none )
@@ -159,101 +159,110 @@ viewHomSetTable { cat, editState, showIdentities } =
         objects =
             Dict.toList cat.objects
 
-        homSets =
-            Cat.getHomSets cat
+        content =
+            if List.isEmpty objects then
+                Html.div []
+                    [ Html.text "There are no objects between which morphisms can be defined. Add at least one object!" ]
+
+            else
+                let
+                    homSets =
+                        Cat.getHomSets cat
+                in
+                Html.table []
+                    [ Html.thead []
+                        [ Html.tr [] <|
+                            Html.th [] [{- empty top-left corner -}]
+                                :: List.map headerCell objects
+                        ]
+                    , Html.tbody [] <|
+                        List.map
+                            (\( domId, domLbl ) ->
+                                Html.tr [] <|
+                                    headerCell ( domId, domLbl )
+                                        :: List.map
+                                            (\( codId, _ ) ->
+                                                let
+                                                    homSet =
+                                                        Maybe.withDefault Set.empty <| Dict.get ( domId, codId ) homSets
+
+                                                    cellCls =
+                                                        A.class "m-cell"
+
+                                                    addIdMorphism =
+                                                        if showIdentities && domId == codId then
+                                                            (::) (idMorphism domLbl)
+
+                                                        else
+                                                            identity
+
+                                                    viewHomSet : (Int -> Html msg) -> Set Int -> Html msg
+                                                    viewHomSet renderMorphism set =
+                                                        Set.toList set
+                                                            |> List.map renderMorphism
+                                                            |> addIdMorphism
+                                                            |> List.intersperse (Html.text ", ")
+                                                            |> (\items ->
+                                                                    if List.isEmpty items then
+                                                                        [ Html.text "∅" ]
+
+                                                                    else
+                                                                        Html.text "{" :: items ++ [ Html.text "}" ]
+                                                               )
+                                                            |> Html.span []
+
+                                                    staticCell =
+                                                        Html.td
+                                                            [ cellCls
+                                                            , E.onMouseEnter <| SetEditState <| EditingHomSet domId codId
+                                                            ]
+                                                            [ viewHomSet morphismWithId homSet ]
+
+                                                    cell =
+                                                        case editState of
+                                                            EditingHomSet dId cId ->
+                                                                if dId == domId && cId == codId then
+                                                                    Html.td
+                                                                        [ cellCls
+                                                                        , A.class "m-edit"
+                                                                        , E.onMouseLeave <| SetEditState NotEditing
+                                                                        ]
+                                                                        [ viewHomSet
+                                                                            (\morphId ->
+                                                                                Html.span []
+                                                                                    [ morphismWithId morphId
+                                                                                    , Html.button
+                                                                                        [ E.onClick <| DeleteMorphism morphId
+                                                                                        , A.title "Remove morphism"
+                                                                                        ]
+                                                                                        [ Html.text "🗙" ]
+                                                                                    ]
+                                                                            )
+                                                                            homSet
+                                                                        , Html.button
+                                                                            [ A.class "m-add"
+                                                                            , E.onClick <| AddMorphism dId cId
+                                                                            , A.title "Add morphism"
+                                                                            ]
+                                                                            [ Html.text "+" ]
+                                                                        ]
+
+                                                                else
+                                                                    staticCell
+
+                                                            NotEditing ->
+                                                                staticCell
+                                                in
+                                                cell
+                                            )
+                                            objects
+                            )
+                            objects
+                    ]
     in
     Html.div []
         [ Html.h3 [] [ Html.text "Morphisms" ]
-        , Html.table []
-            [ Html.thead []
-                [ Html.tr [] <|
-                    Html.th [] [{- empty top-left corner -}]
-                        :: List.map headerCell objects
-                ]
-            , Html.tbody [] <|
-                List.map
-                    (\( domId, domLbl ) ->
-                        Html.tr [] <|
-                            headerCell ( domId, domLbl )
-                                :: List.map
-                                    (\( codId, _ ) ->
-                                        let
-                                            homSet =
-                                                Maybe.withDefault Set.empty <| Dict.get ( domId, codId ) homSets
-
-                                            cellCls =
-                                                A.class "m-cell"
-
-                                            addIdMorphism =
-                                                if showIdentities && domId == codId then
-                                                    (::) (idMorphism domLbl)
-
-                                                else
-                                                    identity
-
-                                            viewHomSet : (Int -> Html msg) -> Set Int -> Html msg
-                                            viewHomSet renderMorphism set =
-                                                Set.toList set
-                                                    |> List.map renderMorphism
-                                                    |> addIdMorphism
-                                                    |> List.intersperse (Html.text ", ")
-                                                    |> (\items ->
-                                                            if List.isEmpty items then
-                                                                [ Html.text "∅" ]
-
-                                                            else
-                                                                Html.text "{" :: items ++ [ Html.text "}" ]
-                                                       )
-                                                    |> Html.span []
-
-                                            staticCell =
-                                                Html.td
-                                                    [ cellCls
-                                                    , E.onMouseEnter <| SetEditState <| EditingHomSet domId codId
-                                                    ]
-                                                    [ viewHomSet morphismWithId homSet ]
-
-                                            cell =
-                                                case editState of
-                                                    EditingHomSet dId cId ->
-                                                        if dId == domId && cId == codId then
-                                                            Html.td
-                                                                [ cellCls
-                                                                , A.class "m-edit"
-                                                                , E.onMouseLeave <| SetEditState NotEditing
-                                                                ]
-                                                                [ viewHomSet
-                                                                    (\morphId ->
-                                                                        Html.span []
-                                                                            [ morphismWithId morphId
-                                                                            , Html.button
-                                                                                [ E.onClick <| DeleteMorphism morphId
-                                                                                , A.title "Remove morphism"
-                                                                                ]
-                                                                                [ Html.text "🗙" ]
-                                                                            ]
-                                                                    )
-                                                                    homSet
-                                                                , Html.button
-                                                                    [ A.class "m-add"
-                                                                    , E.onClick <| AddMorphism dId cId
-                                                                    , A.title "Add morphism"
-                                                                    ]
-                                                                    [ Html.text "+" ]
-                                                                ]
-
-                                                        else
-                                                            staticCell
-
-                                                    NotEditing ->
-                                                        staticCell
-                                        in
-                                        cell
-                                    )
-                                    objects
-                    )
-                    objects
-            ]
+        , content
         ]
 
 
@@ -276,67 +285,58 @@ viewCompositionTable { cat, showIdentities } =
                         morphismWithId morphId
                 ]
 
-        homSets =
-            Cat.getHomSets cat
-    in
-    Html.div []
-        [ Html.h3 [] [ Html.text "Composition" ]
-        , Html.table []
-            [ Html.thead []
-                [ Html.tr [] <|
-                    Html.th [] [{- empty top-left corner -}]
-                        :: List.map morphHeaderCell morphs.columns
-                ]
-            , Html.tbody [] <|
-                List.map
-                    (\mor1 ->
-                        Html.tr [] <|
-                            morphHeaderCell mor1
-                                :: List.map
-                                    (\mor2 ->
-                                        let
-                                            cell =
-                                                case mor1 of
-                                                    Identity objId1 ->
-                                                        case mor2 of
-                                                            Identity objId2 ->
-                                                                if objId1 == objId2 then
-                                                                    Html.td [] [ idMorphism <| Maybe.withDefault "TODO???" <| Dict.get objId1 cat.objects ]
+        content =
+            if List.isEmpty morphs.rows || List.isEmpty morphs.columns then
+                Html.div []
+                    [ Html.text <|
+                        if showIdentities then
+                            "There are no composable morphisms"
 
-                                                                else
-                                                                    Html.td [] []
+                        else
+                            "There are no composable non-identity morphisms"
+                    ]
 
-                                                            NonIdentity morphId2 nonIdM2 ->
-                                                                if objId1 == nonIdM2.domId then
+            else
+                let
+                    homSets =
+                        Cat.getHomSets cat
+                in
+                Html.table []
+                    [ Html.thead []
+                        [ Html.tr [] <|
+                            Html.th [] [{- empty top-left corner -}]
+                                :: List.map morphHeaderCell morphs.columns
+                        ]
+                    , Html.tbody [] <|
+                        List.map
+                            (\mor1 ->
+                                Html.tr [] <|
+                                    morphHeaderCell mor1
+                                        :: List.map
+                                            (\mor2 ->
+                                                if Cat.getCodId mor1 /= Cat.getDomId mor2 then
+                                                    -- the 2 moprhisms are not composable
+                                                    Html.td [] []
+
+                                                else
+                                                    case mor1 of
+                                                        Identity objId1 ->
+                                                            case mor2 of
+                                                                Identity _ ->
+                                                                    Html.td [] [ idMorphism (getObjLabel objId1) ]
+
+                                                                NonIdentity morphId2 _ ->
                                                                     Html.td [] [ morphismWithId morphId2 ]
 
-                                                                else
-                                                                    Html.td [] []
-
-                                                    NonIdentity morphId1 nonIdM1 ->
-                                                        case mor2 of
-                                                            Identity objId2 ->
-                                                                if nonIdM1.codId == objId2 then
+                                                        NonIdentity morphId1 nonIdM1 ->
+                                                            case mor2 of
+                                                                Identity _ ->
                                                                     Html.td [] [ morphismWithId morphId1 ]
 
-                                                                else
-                                                                    Html.td [] []
-
-                                                            NonIdentity morphId2 nonIdM2 ->
-                                                                if nonIdM1.codId == nonIdM2.domId then
+                                                                NonIdentity morphId2 nonIdM2 ->
                                                                     let
                                                                         homSet =
                                                                             Maybe.withDefault Set.empty <| Dict.get ( nonIdM1.domId, nonIdM2.codId ) homSets
-
-                                                                        composition =
-                                                                            Dict.get ( morphId1, morphId2 ) cat.composition
-
-                                                                        morphOption morphId =
-                                                                            Html.option
-                                                                                [ A.selected <| composition == Just morphId
-                                                                                , A.value <| String.fromInt morphId
-                                                                                ]
-                                                                                [ morphismWithId morphId ]
 
                                                                         isIdentityAvailable =
                                                                             nonIdM1.domId == nonIdM2.codId
@@ -358,6 +358,9 @@ viewCompositionTable { cat, showIdentities } =
 
                                                                     else
                                                                         let
+                                                                            composition =
+                                                                                Dict.get ( morphId1, morphId2 ) cat.composition
+
                                                                             unfedOption =
                                                                                 Html.option [ A.selected <| composition == Nothing ] [ Html.text "?" ]
 
@@ -365,7 +368,8 @@ viewCompositionTable { cat, showIdentities } =
                                                                                 if isIdentityAvailable then
                                                                                     (::)
                                                                                         (Html.option
-                                                                                            [ A.selected <| composition == Just (negate nonIdM1.domId)
+                                                                                            [ -- hack: since we don't store ID morphisms explicitly, we use negation of objId to represent them
+                                                                                              A.selected <| composition == Just (negate nonIdM1.domId)
                                                                                             , A.value <| String.fromInt (negate nonIdM1.domId)
                                                                                             ]
                                                                                             [ idMorphism (getObjLabel nonIdM1.domId) ]
@@ -373,6 +377,13 @@ viewCompositionTable { cat, showIdentities } =
 
                                                                                 else
                                                                                     identity
+
+                                                                            morphOption morphId =
+                                                                                Html.option
+                                                                                    [ A.selected <| composition == Just morphId
+                                                                                    , A.value <| String.fromInt morphId
+                                                                                    ]
+                                                                                    [ morphismWithId morphId ]
                                                                         in
                                                                         Html.td []
                                                                             [ Html.select
@@ -394,16 +405,15 @@ viewCompositionTable { cat, showIdentities } =
                                                                                 unfedOption
                                                                                     :: addIdentity (List.map morphOption (Set.toList homSet))
                                                                             ]
-
-                                                                else
-                                                                    Html.td [] []
-                                        in
-                                        cell
-                                    )
-                                    morphs.columns
-                    )
-                    morphs.rows
-            ]
+                                            )
+                                            morphs.columns
+                            )
+                            morphs.rows
+                    ]
+    in
+    Html.div []
+        [ Html.h3 [] [ Html.text "Composition" ]
+        , content
         ]
 
 
