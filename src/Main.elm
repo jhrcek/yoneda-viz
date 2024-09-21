@@ -1,7 +1,7 @@
 module Main exposing (main)
 
 import Browser
-import Category as Cat exposing (Category, Morphism(..))
+import Category as Cat exposing (Category, Morphism(..), NotAssociativeWitness)
 import Dict
 import Html exposing (Html)
 import Html.Attributes as A
@@ -276,16 +276,9 @@ viewCompositionTable { cat, showIdentities } =
             Maybe.withDefault "TODO???" <| Dict.get objId cat.objects
 
         morphHeaderCell mor =
-            Html.th []
-                [ case mor of
-                    Identity objId ->
-                        idMorphism (getObjLabel objId)
+            Html.th [] [ viewMorphism cat mor ]
 
-                    NonIdentity morphId _ ->
-                        morphismWithId morphId
-                ]
-
-        content =
+        compositionTable =
             if List.isEmpty morphs.rows || List.isEmpty morphs.columns then
                 Html.div []
                     [ Html.text <|
@@ -410,10 +403,79 @@ viewCompositionTable { cat, showIdentities } =
                             )
                             morphs.rows
                     ]
+
+        associativityDetails =
+            let
+                assocCheck =
+                    Cat.checkAssociativity showIdentities cat
+            in
+            Html.details []
+                [ Html.summary [] [ Html.text "Associativity" ]
+                , Html.p [] [ Html.text "∀ a, b, c, d ∈ ob(C), f ∈ hom(a, b), g ∈ hom(b, c), h ∈ hom(c, d): (f;g);h = f;(g;h)" ]
+                , viewIf (assocCheck.countAssocTriples > 0) <|
+                    Html.p [ A.style "color" "green" ]
+                        -- TODO pluralize
+                        [ Html.text <| String.fromInt assocCheck.countAssocTriples ++ " triples satisfy the equation." ]
+                , viewIf (assocCheck.countUndefinedTriples > 0) <|
+                    Html.p [ A.style "color" "orange" ]
+                        [ Html.text <| String.fromInt assocCheck.countUndefinedTriples ++ " triples could not be checked, because composition not defined for them." ]
+                , viewIf (assocCheck.countNotAssociativeTriples > 0) <|
+                    Html.p [ A.style "color" "red" ]
+                        [ Html.text <| String.fromInt assocCheck.countNotAssociativeTriples ++ " triples violate the equation:"
+                        , assocCheck.notAssociativeWitnesses
+                            |> List.map (viewNotAssociativeWitness cat)
+                            |> Html.ul []
+                        ]
+                ]
     in
     Html.div []
         [ Html.h3 [] [ Html.text "Composition" ]
-        , content
+        , compositionTable
+        , associativityDetails
+        ]
+
+
+viewIf : Bool -> Html msg -> Html msg
+viewIf cond content =
+    if cond then
+        content
+
+    else
+        Html.text ""
+
+
+viewNotAssociativeWitness : Category -> NotAssociativeWitness -> Html msg
+viewNotAssociativeWitness cat { m1, m2, m3, m1m2, m1m2_m3, m2m3, m1_m2m3 } =
+    let
+        vm =
+            viewMorphism cat
+    in
+    Html.li []
+        [ Html.text "("
+        , vm m1
+        , Html.text ";"
+        , vm m2
+        , Html.text ");"
+        , vm m3
+        , Html.text " = "
+        , vm m1m2
+        , Html.text ";"
+        , vm m3
+        , Html.text " = "
+        , vm m1m2_m3
+        , Html.text " ≠ "
+        , vm m1_m2m3
+        , Html.text " = "
+        , vm m1
+        , Html.text ";"
+        , vm m2m3
+        , Html.text " = "
+        , vm m1
+        , Html.text ";("
+        , vm m2
+        , Html.text ";"
+        , vm m3
+        , Html.text ")"
         ]
 
 
@@ -425,6 +487,16 @@ idMorphism domLbl =
 morphismWithId : Int -> Html msg
 morphismWithId morphId =
     morphism "f" (String.fromInt morphId)
+
+
+viewMorphism : Category -> Morphism -> Html msg
+viewMorphism cat m =
+    case m of
+        Identity objId ->
+            idMorphism (Maybe.withDefault "TODO??" <| Dict.get objId cat.objects)
+
+        NonIdentity morphId _ ->
+            morphismWithId morphId
 
 
 morphism : String -> String -> Html msg

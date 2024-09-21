@@ -1,8 +1,11 @@
 module Category exposing
     ( Category
+    , CompositionCheck
     , Morphism(..)
+    , NotAssociativeWitness
     , addMorphism
     , addObject
+    , checkAssociativity
     , defineComposition
     , deleteMorphism
     , deleteObject
@@ -82,41 +85,31 @@ around "the object trhough which the morphisms are being composed"
 -}
 listComposableMorphisms : Bool -> Category -> { rows : List Morphism, columns : List Morphism }
 listComposableMorphisms includeIdentities cat =
-    if includeIdentities then
-        let
-            ms =
-                List.map (uncurry NonIdentity) (Dict.toList cat.morphisms)
-                    ++ List.map Identity (Dict.keys cat.objects)
+    let
+        ms =
+            List.map (uncurry NonIdentity) (Dict.toList cat.morphisms)
+                ++ (if includeIdentities then
+                        List.map Identity (Dict.keys cat.objects)
 
-            rows =
-                List.sortBy (\m -> ( getCodId m, getDomId m )) ms
+                    else
+                        []
+                   )
 
-            columns =
-                List.sortBy (\m -> ( getDomId m, getCodId m )) ms
-        in
-        { rows = rows, columns = columns }
+        rows =
+            ms
+                -- Only keep morphisms that can be composed with at least 1 morphism
+                |> List.filter (\first -> List.any (\second -> getCodId first == getDomId second) ms)
+                |> List.sortBy (\m -> ( getCodId m, getDomId m ))
 
-    else
-        let
-            ms =
-                Dict.toList cat.morphisms
-
-            -- TODO calculate fiber product more efficiently
-            rows =
-                ms
-                    -- Only keep morphisms that can be composed with some non-ID morph
-                    |> List.filter (\( _, first ) -> List.any (\( _, second ) -> first.codId == second.domId) ms)
-                    |> List.sortBy (\( _, { domId, codId } ) -> ( codId, domId ))
-                    |> List.map (\( mId, m ) -> NonIdentity mId m)
-
-            columns =
-                ms
-                    -- Only keep morphisms that can be composed with some non-ID morph
-                    |> List.filter (\( _, second ) -> List.any (\( _, first ) -> first.codId == second.domId) ms)
-                    |> List.sortBy (\( _, { domId, codId } ) -> ( domId, codId ))
-                    |> List.map (\( mId, m ) -> NonIdentity mId m)
-        in
-        { rows = rows, columns = columns }
+        columns =
+            ms
+                -- Only keep morphisms that can be composed with at least 1 morphism
+                |> List.filter (\second -> List.any (\first -> getCodId first == getDomId second) ms)
+                |> List.sortBy (\m -> ( getDomId m, getCodId m ))
+    in
+    { rows = rows
+    , columns = columns
+    }
 
 
 {-| (domId, codId) -> Set morphism IDs
@@ -229,6 +222,142 @@ defineComposition morphId1 morphId2 morphId cat =
 undefineComposition : Int -> Int -> Category -> Category
 undefineComposition morphId1 morphId2 cat =
     { cat | composition = Dict.remove ( morphId1, morphId2 ) cat.composition }
+
+
+{-| NotAssociativeWitness
+A triple of morphisms (m1, m2, m3) for which (m1;m2);m3 /= m1;(m2;m3)
+-}
+type alias NotAssociativeWitness =
+    { m1 : Morphism
+    , m2 : Morphism
+    , m3 : Morphism
+    , m1m2 : Morphism
+    , m1m2_m3 : Morphism
+    , m2m3 : Morphism
+    , m1_m2m3 : Morphism
+    }
+
+
+type alias CompositionCheck =
+    { -- Count of triples of morphisms (m1, m2, m3) that satisfy associativity, i.e. (m1;m2);m3 = m1;(m2;m3)
+      countAssocTriples : Int
+    , -- Count of triples  for which associativity couldn't be checked, because composition rule is not complete
+      countUndefinedTriples : Int
+    , -- Count triples that satisfy associativity
+      countNotAssociativeTriples : Int
+    , notAssociativeWitnesses : List NotAssociativeWitness
+    }
+
+
+emptyCompositionCheck : CompositionCheck
+emptyCompositionCheck =
+    CompositionCheck 0 0 0 []
+
+
+incrementAssociative : CompositionCheck -> CompositionCheck
+incrementAssociative check =
+    { check | countAssocTriples = check.countAssocTriples + 1 }
+
+
+incrementUndefined : CompositionCheck -> CompositionCheck
+incrementUndefined check =
+    { check | countUndefinedTriples = check.countUndefinedTriples + 1 }
+
+
+addNonAssocWitness : NotAssociativeWitness -> CompositionCheck -> CompositionCheck
+addNonAssocWitness witness check =
+    { check
+        | notAssociativeWitnesses = witness :: check.notAssociativeWitnesses
+        , countNotAssociativeTriples = check.countNotAssociativeTriples + 1
+    }
+
+
+checkAssociativity : Bool -> Category -> CompositionCheck
+checkAssociativity includeIdentities cat =
+    let
+        ms =
+            List.map (uncurry NonIdentity) (Dict.toList cat.morphisms)
+                ++ (if includeIdentities then
+                        List.map Identity (Dict.keys cat.objects)
+
+                    else
+                        []
+                   )
+
+        -- This function assumes that m1 and m2 are composable
+        lookupComposition m1 m2 =
+            case ( m1, m2 ) of
+                ( Identity _, other ) ->
+                    Just other
+
+                ( other, Identity _ ) ->
+                    Just other
+
+                ( NonIdentity morpId1 _, NonIdentity morpId2 _ ) ->
+                    Dict.get ( morpId1, morpId2 ) cat.composition
+                        |> Maybe.andThen
+                            (\compId ->
+                                if compId < 0 then
+                                    Just (Identity (negate compId))
+
+                                else
+                                    Dict.get compId cat.morphisms
+                                        |> Maybe.map (NonIdentity compId)
+                            )
+    in
+    triples ms
+        |> List.foldr
+            (\( m1, m2, m3 ) ->
+                -- Both m1;m2 and m2;m3 are composable
+                if getCodId m1 == getDomId m2 && getCodId m2 == getDomId m3 then
+                    let
+                        leftAssoc =
+                            lookupComposition m1 m2
+                                |> Maybe.andThen (\m1m2 -> lookupComposition m1m2 m3 |> Maybe.map (Tuple.pair m1m2))
+
+                        rightAssoc =
+                            lookupComposition m2 m3
+                                |> Maybe.andThen (\m2m3 -> lookupComposition m1 m2m3 |> Maybe.map (Tuple.pair m2m3))
+                    in
+                    Maybe.map2
+                        (\( m1m2, m1m2_m3 ) ( m2m3, m1_m2m3 ) ->
+                            if m1m2_m3 == m1_m2m3 then
+                                incrementAssociative
+
+                            else
+                                addNonAssocWitness
+                                    { m1 = m1
+                                    , m2 = m2
+                                    , m3 = m3
+                                    , m1m2 = m1m2
+                                    , m1m2_m3 = m1m2_m3
+                                    , m2m3 = m2m3
+                                    , m1_m2m3 = m1_m2m3
+                                    }
+                        )
+                        leftAssoc
+                        rightAssoc
+                        |> Maybe.withDefault incrementUndefined
+
+                else
+                    identity
+            )
+            emptyCompositionCheck
+
+
+triples : List a -> List ( a, a, a )
+triples xs =
+    List.concatMap
+        (\x ->
+            List.concatMap
+                (\y ->
+                    List.map
+                        (\z -> ( x, y, z ))
+                        xs
+                )
+                xs
+        )
+        xs
 
 
 renderDot : Bool -> Category -> String

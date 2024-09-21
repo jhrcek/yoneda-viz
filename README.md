@@ -8,7 +8,7 @@ An experimental interactive UI trying to help people understand [Yoneda lemma](h
     - [x] Specify (small) number of objects from (0?) 1 - 10(?)
     - [x] Specify hom sets
     - [x] Specify composition rule
-        - [ ] Show whether it's associative
+        - [x] Show whether it's associative
     - [x] Checkbox to enable/disable rendering of identity morphisms (in diagram, composition table and hom set editor)
 
 - [ ] Set / function editor
