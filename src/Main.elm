@@ -46,7 +46,10 @@ init _ =
 
 renderGraph : Bool -> Category -> Cmd msg
 renderGraph showIdentities cat =
-    Ports.renderDot { engine = "dot", dotSource = Cat.renderDot showIdentities cat }
+    Ports.renderDot
+        { engine = "dot"
+        , dotSource = Cat.renderDotString showIdentities cat
+        }
 
 
 type Msg

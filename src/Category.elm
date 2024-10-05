@@ -14,13 +14,15 @@ module Category exposing
     , getDomId
     , getHomSets
     , listComposableMorphisms
-    , renderDot
+    , renderDotString
     , setObjectLabel
     , undefineComposition
     )
 
 import Basics.Extra exposing (uncurry)
 import Dict exposing (Dict)
+import DotLang as Dot
+import Html.Parser as HP
 import Set exposing (Set)
 
 
@@ -360,39 +362,58 @@ triples xs =
         xs
 
 
-renderDot : Bool -> Category -> String
+node : Int -> String -> Dot.Stmt
+node objId lbl =
+    Dot.NodeStmt (nodeId objId)
+        [ labelAttr (Dot.ID lbl) ]
+
+
+labelAttr : Dot.ID -> Dot.Attr
+labelAttr lblVal =
+    Dot.Attr (Dot.ID "label") lblVal
+
+
+nodeId : Int -> Dot.NodeId
+nodeId ojbId =
+    Dot.NodeId (Dot.NumeralID (toFloat ojbId)) Nothing
+
+
+renderDot : Bool -> Category -> Dot.Dot
 renderDot showIdentities cat =
     let
         objList =
             Dict.toList cat.objects
 
-        nodeLines =
-            List.map
-                (\( objId, lbl ) ->
-                    -- TODO will need some escaping of label string?
-                    String.fromInt objId ++ "[label=" ++ lbl ++ "]"
-                )
-                objList
+        nodeStatements =
+            List.map (\( objId, lbl ) -> node objId lbl) objList
 
-        edgeLines =
+        htmlLabelWithSub str sub =
+            Dot.HtmlID
+                (HP.Element
+                    -- Has to be one of supported HTML tags: https://graphviz.org/doc/info/shapes.html#html
+                    "font"
+                    [ ( "POINT-SIZE", "10" ) ]
+                    [ HP.Text str
+                    , HP.Element "sub" [] [ HP.Text sub ]
+                    ]
+                )
+
+        edgeStatements =
             Dict.foldl
                 (\morphId { label, domId, codId } ->
                     let
                         morphLbl =
                             if String.isEmpty label then
-                                "<f<sub>" ++ String.fromInt morphId ++ "</sub>>"
+                                htmlLabelWithSub "f" (String.fromInt morphId)
 
                             else
-                                label
+                                Dot.ID label
                     in
                     (::)
-                        (String.fromInt domId
-                            ++ "->"
-                            ++ String.fromInt codId
-                            ++ "[label="
-                            -- TODO will need some escaping of label string?
-                            ++ morphLbl
-                            ++ "]"
+                        (Dot.EdgeStmtNode (nodeId domId)
+                            (Dot.EdgeNode (nodeId codId))
+                            []
+                            [ labelAttr morphLbl ]
                         )
                 )
                 []
@@ -400,23 +421,47 @@ renderDot showIdentities cat =
                 ++ (if showIdentities then
                         List.map
                             (\( objId, objLbl ) ->
-                                String.fromInt objId
-                                    ++ "->"
-                                    ++ String.fromInt objId
-                                    ++ "[label=<id<sub>"
-                                    -- TODO will need some escaping of label string?
-                                    ++ objLbl
-                                    ++ "</sub>>]"
+                                Dot.EdgeStmtNode (nodeId objId)
+                                    (Dot.EdgeNode (nodeId objId))
+                                    []
+                                    [ labelAttr (htmlLabelWithSub "id" objLbl) ]
                             )
                             objList
 
                     else
                         []
                    )
+
+        graphAttrs =
+            Dot.AttrStmt Dot.AttrGraph
+                [ Dot.Attr (Dot.ID "rankdir") (Dot.ID "BT")
+                , Dot.Attr (Dot.ID "splines") (Dot.ID "true")
+                , Dot.Attr (Dot.ID "overlap") (Dot.ID "false")
+                ]
+
+        nodeAttrs =
+            Dot.AttrStmt Dot.AttrNode
+                [ Dot.Attr (Dot.ID "shape") (Dot.ID "circle")
+                , Dot.Attr (Dot.ID "width") (Dot.NumeralID 0.3)
+                , Dot.Attr (Dot.ID "fixedsize") (Dot.ID "true")
+                ]
+
+        edgeAttrs =
+            Dot.AttrStmt Dot.AttrEdge
+                [ Dot.Attr (Dot.ID "arrowsize") (Dot.NumeralID 0.5) ]
     in
-    String.join ";" <|
-        "digraph G{graph[rankdir=BT;splines=true;overlap=false]"
-            :: "node[shape=circle;width=0.3;fixedsize=true]"
-            :: "edge[arrowsize=0.5]"
-            :: (nodeLines ++ edgeLines)
-            ++ [ "}" ]
+    Dot.Dot
+        Dot.Digraph
+        Nothing
+        (graphAttrs
+            :: nodeAttrs
+            :: edgeAttrs
+            :: nodeStatements
+            ++ edgeStatements
+        )
+
+
+renderDotString : Bool -> Category -> String
+renderDotString showIdentities cat =
+    renderDot showIdentities cat
+        |> Dot.toStringWithConfig Dot.OneLine
