@@ -6,6 +6,7 @@ import Dict
 import Html exposing (Html)
 import Html.Attributes as A
 import Html.Events as E
+import Palette.X11 as X11
 import Ports
 import Set exposing (Set)
 import SolidColor as Color
@@ -160,7 +161,7 @@ viewObjectControls { cat, viewConfig } =
                 []
 
             -- TODO add info icon explaining what this does (hiding identities from composition table, hom sets and graph, but not from composition table results!)
-            , Html.text " Show Identities"
+            , Html.text "Show Identities"
             ]
         , Html.label []
             [ Html.input
@@ -170,7 +171,11 @@ viewObjectControls { cat, viewConfig } =
                 , A.id "color-objs"
                 ]
                 []
-            , Html.text " Color Objects"
+
+            -- TODO add info icon explaining how this works, especially in composition table
+            -- (row header = domain of first morphism, col header = codomain of the 2nd morphism,
+            --  inner cell = codomain of 1st morphism/domain of 2nd morphism)
+            , Html.text "Color Objects"
             ]
         , Html.h3 [] [ Html.text "Objects" ]
         , Html.button [ E.onClick AddObject ] [ Html.text "Add object" ]
@@ -312,8 +317,18 @@ viewCompositionTable { cat, viewConfig } =
         getObjLabel objId =
             Maybe.withDefault "TODO???" <| Maybe.map .label <| Dict.get objId cat.objects
 
-        morphHeaderCell mor =
-            Html.th [] [ viewMorphism cat mor ]
+        getObjColor objId =
+            Maybe.withDefault X11.white <| Maybe.map .color <| Dict.get objId cat.objects
+
+        cellAttr getObjId mor =
+            if viewConfig.colorObjects then
+                [ A.style "background-color" <| Color.toHex <| getObjColor <| getObjId mor ]
+
+            else
+                []
+
+        morphHeaderCell getObjId mor =
+            Html.th (cellAttr getObjId mor) [ viewMorphism cat mor ]
 
         compositionTable =
             if List.isEmpty morphs.rows || List.isEmpty morphs.columns then
@@ -335,13 +350,13 @@ viewCompositionTable { cat, viewConfig } =
                     [ Html.thead []
                         [ Html.tr [] <|
                             Html.th [] [{- empty top-left corner -}]
-                                :: List.map morphHeaderCell morphs.columns
+                                :: List.map (morphHeaderCell Cat.getCodId) morphs.columns
                         ]
                     , Html.tbody [] <|
                         List.map
                             (\mor1 ->
                                 Html.tr [] <|
-                                    morphHeaderCell mor1
+                                    morphHeaderCell Cat.getDomId mor1
                                         :: List.map
                                             (\mor2 ->
                                                 if Cat.getCodId mor1 /= Cat.getDomId mor2 then
@@ -349,19 +364,23 @@ viewCompositionTable { cat, viewConfig } =
                                                     Html.td [] []
 
                                                 else
+                                                    let
+                                                        cellAttrs =
+                                                            cellAttr Cat.getCodId mor1
+                                                    in
                                                     case mor1 of
                                                         Identity objId1 ->
                                                             case mor2 of
                                                                 Identity _ ->
-                                                                    Html.td [] [ idMorphism (getObjLabel objId1) ]
+                                                                    Html.td cellAttrs [ idMorphism (getObjLabel objId1) ]
 
                                                                 NonIdentity morphId2 _ ->
-                                                                    Html.td [] [ morphismWithId morphId2 ]
+                                                                    Html.td cellAttrs [ morphismWithId morphId2 ]
 
                                                         NonIdentity morphId1 nonIdM1 ->
                                                             case mor2 of
                                                                 Identity _ ->
-                                                                    Html.td [] [ morphismWithId morphId1 ]
+                                                                    Html.td cellAttrs [ morphismWithId morphId1 ]
 
                                                                 NonIdentity morphId2 nonIdM2 ->
                                                                     let
@@ -373,7 +392,7 @@ viewCompositionTable { cat, viewConfig } =
                                                                     in
                                                                     if Set.isEmpty homSet && not isIdentityAvailable then
                                                                         Html.td
-                                                                            [ A.title <|
+                                                                            ((A.title <|
                                                                                 "hom("
                                                                                     ++ getObjLabel nonIdM1.domId
                                                                                     ++ ", "
@@ -383,7 +402,9 @@ viewCompositionTable { cat, viewConfig } =
                                                                                     ++ " to "
                                                                                     ++ getObjLabel nonIdM2.codId
                                                                                     ++ ".\nAdd at least one!"
-                                                                            ]
+                                                                             )
+                                                                                :: cellAttrs
+                                                                            )
                                                                             [ Html.text "⚠" ]
 
                                                                     else
@@ -415,7 +436,7 @@ viewCompositionTable { cat, viewConfig } =
                                                                                     ]
                                                                                     [ morphismWithId morphId ]
                                                                         in
-                                                                        Html.td []
+                                                                        Html.td cellAttrs
                                                                             [ Html.select
                                                                                 [ E.onInput <|
                                                                                     \str ->
