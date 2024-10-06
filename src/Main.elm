@@ -8,6 +8,7 @@ import Html.Attributes as A
 import Html.Events as E
 import Ports
 import Set exposing (Set)
+import SolidColor as Color
 
 
 main : Program () Model Msg
@@ -146,9 +147,9 @@ viewObjectControls cat =
         , cat.objects
             |> Dict.toList
             |> List.map
-                (\( objId, lbl ) ->
+                (\( objId, obj ) ->
                     Html.li []
-                        [ Html.span [] [ Html.text lbl ] -- TODO make this editable
+                        [ Html.span [] [ Html.text obj.label ] -- TODO make this editable
                         , Html.button [ E.onClick (DeleteObject objId) ] [ Html.text "🗙" ]
                         ]
                 )
@@ -176,13 +177,13 @@ viewHomSetTable { cat, editState, showIdentities } =
                     [ Html.thead []
                         [ Html.tr [] <|
                             Html.th [] [{- empty top-left corner -}]
-                                :: List.map headerCell objects
+                                :: List.map objHeaderCell objects
                         ]
                     , Html.tbody [] <|
                         List.map
-                            (\( domId, domLbl ) ->
+                            (\( domId, domObj ) ->
                                 Html.tr [] <|
-                                    headerCell ( domId, domLbl )
+                                    objHeaderCell ( domId, domObj )
                                         :: List.map
                                             (\( codId, _ ) ->
                                                 let
@@ -194,7 +195,7 @@ viewHomSetTable { cat, editState, showIdentities } =
 
                                                     addIdMorphism =
                                                         if showIdentities && domId == codId then
-                                                            (::) (idMorphism domLbl)
+                                                            (::) (idMorphism domObj.label)
 
                                                         else
                                                             identity
@@ -276,7 +277,7 @@ viewCompositionTable { cat, showIdentities } =
             Cat.listComposableMorphisms showIdentities cat
 
         getObjLabel objId =
-            Maybe.withDefault "TODO???" <| Dict.get objId cat.objects
+            Maybe.withDefault "TODO???" <| Maybe.map .label <| Dict.get objId cat.objects
 
         morphHeaderCell mor =
             Html.th [] [ viewMorphism cat mor ]
@@ -496,7 +497,11 @@ viewMorphism : Category -> Morphism -> Html msg
 viewMorphism cat m =
     case m of
         Identity objId ->
-            idMorphism (Maybe.withDefault "TODO??" <| Dict.get objId cat.objects)
+            idMorphism
+                (Maybe.withDefault "TODO??" <|
+                    Maybe.map .label <|
+                        Dict.get objId cat.objects
+                )
 
         NonIdentity morphId _ ->
             morphismWithId morphId
@@ -507,6 +512,7 @@ morphism name sub =
     Html.span [] [ Html.text name, Html.sub [] [ Html.text sub ] ]
 
 
-headerCell : ( Int, String ) -> Html msg
-headerCell ( _, lbl ) =
-    Html.th [] [ Html.text lbl ]
+objHeaderCell : ( Int, Cat.Obj ) -> Html msg
+objHeaderCell ( _, obj ) =
+    Html.th [ A.style "background-color" (Color.toRGBString obj.color) ]
+        [ Html.text obj.label ]

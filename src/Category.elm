@@ -3,6 +3,7 @@ module Category exposing
     , CompositionCheck
     , Morphism(..)
     , NotAssociativeWitness
+    , Obj
     , addMorphism
     , addObject
     , checkAssociativity
@@ -23,12 +24,16 @@ import Basics.Extra exposing (uncurry)
 import Dict exposing (Dict)
 import DotLang as Dot
 import Html.Parser as HP
+import List.Extra as List
+import Palette.Tango as Tango
+import Palette.X11 as X11
 import Set exposing (Set)
+import SolidColor as Color exposing (SolidColor)
 
 
 type alias Category =
-    { -- | object ID -> label
-      objects : Dict Int String
+    { -- | object ID -> (label, color)
+      objects : Dict Int Obj
     , -- | morphism ID -> NonIdM. We only explicitly represents non-Identity morphisms.
       -- Identities are implicitly assumed present
       morphisms : Dict Int NonIdM
@@ -45,6 +50,12 @@ type alias Category =
 type Morphism
     = Identity Int {- <- obj ID -}
     | NonIdentity Int {- <- morp ID -} NonIdM
+
+
+type alias Obj =
+    { label : String
+    , color : SolidColor
+    }
 
 
 getDomId : Morphism -> Int
@@ -150,19 +161,63 @@ addObject cat =
         objId =
             cat.objectIdGen
 
-        lbl =
+        label =
             -- TODO come up with better way to generate object labels, maybe do some wrap around..
             String.fromChar <| Char.fromCode <| 65 {- ASCII code of 'A' -} + objId
+
+        usedColors =
+            Dict.values cat.objects
+                |> List.map .color
+
+        newColor =
+            List.find (\c -> List.notMember c usedColors) colorPalette
+                |> Maybe.withDefault X11.white
+
+        newObject =
+            { label = label
+            , color = newColor
+            }
     in
     { cat
-        | objects = Dict.insert objId lbl cat.objects
+        | objects = Dict.insert objId newObject cat.objects
         , objectIdGen = objId + 1
     }
 
 
+colorPalette : List SolidColor
+colorPalette =
+    [ Tango.butter1
+    , Tango.orange1
+    , Tango.chocolate1
+    , Tango.chameleon1
+    , Tango.skyBlue1
+    , Tango.plum1
+    , Tango.scarletRed1
+    , Tango.butter2
+    , Tango.orange2
+    , Tango.chocolate2
+    , Tango.chameleon2
+    , Tango.skyBlue2
+    , Tango.plum2
+    , Tango.scarletRed2
+    , Tango.butter3
+    , Tango.orange3
+    , Tango.chocolate3
+    , Tango.chameleon3
+    , Tango.skyBlue3
+    , Tango.plum3
+    , Tango.scarletRed3
+    ]
+
+
 setObjectLabel : Int -> String -> Category -> Category
 setObjectLabel objId label cat =
-    { cat | objects = Dict.update objId (\_ -> Just label) cat.objects }
+    { cat
+        | objects =
+            Dict.update objId
+                (Maybe.map (\obj -> { obj | label = label }))
+                cat.objects
+    }
 
 
 deleteObject : Int -> Category -> Category
@@ -362,10 +417,12 @@ triples xs =
         xs
 
 
-node : Int -> String -> Dot.Stmt
-node objId lbl =
+node : Int -> Obj -> Dot.Stmt
+node objId obj =
     Dot.NodeStmt (nodeId objId)
-        [ labelAttr (Dot.ID lbl) ]
+        [ labelAttr (Dot.ID obj.label)
+        , Dot.Attr (Dot.ID "fillcolor") (Dot.ID (Color.toHex obj.color))
+        ]
 
 
 labelAttr : Dot.ID -> Dot.Attr
@@ -385,7 +442,7 @@ renderDot showIdentities cat =
             Dict.toList cat.objects
 
         nodeStatements =
-            List.map (\( objId, lbl ) -> node objId lbl) objList
+            List.map (\( objId, obj ) -> node objId obj) objList
 
         htmlLabelWithSub str sub =
             Dot.HtmlID
@@ -420,11 +477,11 @@ renderDot showIdentities cat =
                 cat.morphisms
                 ++ (if showIdentities then
                         List.map
-                            (\( objId, objLbl ) ->
+                            (\( objId, obj ) ->
                                 Dot.EdgeStmtNode (nodeId objId)
                                     (Dot.EdgeNode (nodeId objId))
                                     []
-                                    [ labelAttr (htmlLabelWithSub "id" objLbl) ]
+                                    [ labelAttr (htmlLabelWithSub "id" obj.label) ]
                             )
                             objList
 
@@ -434,7 +491,7 @@ renderDot showIdentities cat =
 
         graphAttrs =
             Dot.AttrStmt Dot.AttrGraph
-                [ Dot.Attr (Dot.ID "rankdir") (Dot.ID "BT")
+                [ Dot.Attr (Dot.ID "rankdir") (Dot.ID "LR")
                 , Dot.Attr (Dot.ID "splines") (Dot.ID "true")
                 , Dot.Attr (Dot.ID "overlap") (Dot.ID "false")
                 ]
@@ -444,6 +501,7 @@ renderDot showIdentities cat =
                 [ Dot.Attr (Dot.ID "shape") (Dot.ID "circle")
                 , Dot.Attr (Dot.ID "width") (Dot.NumeralID 0.3)
                 , Dot.Attr (Dot.ID "fixedsize") (Dot.ID "true")
+                , Dot.Attr (Dot.ID "style") (Dot.ID "filled")
                 ]
 
         edgeAttrs =
