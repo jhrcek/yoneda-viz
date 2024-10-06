@@ -206,24 +206,24 @@ addObject cat =
 colorPalette : List SolidColor
 colorPalette =
     [ Tango.butter1
-    , Tango.orange1
-    , Tango.chocolate1
     , Tango.chameleon1
+    , Tango.orange1
     , Tango.skyBlue1
+    , Tango.chocolate1
     , Tango.plum1
     , Tango.scarletRed1
     , Tango.butter2
-    , Tango.orange2
-    , Tango.chocolate2
     , Tango.chameleon2
+    , Tango.orange2
     , Tango.skyBlue2
+    , Tango.chocolate2
     , Tango.plum2
     , Tango.scarletRed2
     , Tango.butter3
-    , Tango.orange3
-    , Tango.chocolate3
     , Tango.chameleon3
+    , Tango.orange3
     , Tango.skyBlue3
+    , Tango.chocolate3
     , Tango.plum3
     , Tango.scarletRed3
     ]
