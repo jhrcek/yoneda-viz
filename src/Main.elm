@@ -1,7 +1,7 @@
 module Main exposing (main)
 
 import Browser
-import Category as Cat exposing (Category, Morphism(..), NotAssociativeWitness)
+import Category as Cat exposing (Category, Morphism(..), NotAssociativeWitness, ViewConfig)
 import Dict
 import Html exposing (Html)
 import Html.Attributes as A
@@ -24,7 +24,7 @@ main =
 type alias Model =
     { cat : Category
     , editState : EditState
-    , showIdentities : Bool
+    , viewConfig : ViewConfig
     }
 
 
@@ -39,17 +39,22 @@ init _ =
         model =
             { cat = Cat.empty
             , editState = NotEditing
-            , showIdentities = False
+            , viewConfig = viewConfig
+            }
+
+        viewConfig =
+            { showIdentities = False
+            , colorObjects = True
             }
     in
-    ( model, renderGraph model.showIdentities model.cat )
+    ( model, renderGraph viewConfig model.cat )
 
 
-renderGraph : Bool -> Category -> Cmd msg
-renderGraph showIdentities cat =
+renderGraph : ViewConfig -> Category -> Cmd msg
+renderGraph viewConfig cat =
     Ports.renderDot
         { engine = "dot"
-        , dotSource = Cat.renderDotString showIdentities cat
+        , dotSource = Cat.renderDotString viewConfig cat
         }
 
 
@@ -60,6 +65,7 @@ type Msg
     | DeleteMorphism Int
     | SetEditState EditState
     | ToggleShowIdentities
+    | ToggleColorObjects
     | UndefineComposition Int Int
     | DefineComposition Int Int Int
     | NoOp
@@ -86,13 +92,10 @@ update msg model =
             ( { model | editState = newState }, Cmd.none )
 
         ToggleShowIdentities ->
-            let
-                newShowIdentities =
-                    not model.showIdentities
-            in
-            ( { model | showIdentities = newShowIdentities }
-            , renderGraph newShowIdentities model.cat
-            )
+            updateViewConfig Cat.toggleShowIdentities model
+
+        ToggleColorObjects ->
+            updateViewConfig Cat.toggleColorObjects model
 
         DefineComposition morphId1 morphId2 morphId ->
             updateCat (Cat.defineComposition morphId1 morphId2 morphId) model
@@ -104,6 +107,17 @@ update msg model =
             ( model, Cmd.none )
 
 
+updateViewConfig : (ViewConfig -> ViewConfig) -> Model -> ( Model, Cmd Msg )
+updateViewConfig f model =
+    let
+        newViewConfig =
+            f model.viewConfig
+    in
+    ( { model | viewConfig = newViewConfig }
+    , renderGraph newViewConfig model.cat
+    )
+
+
 updateCat : (Category -> Category) -> Model -> ( Model, Cmd Msg )
 updateCat f model =
     let
@@ -111,7 +125,7 @@ updateCat f model =
             f model.cat
     in
     ( { model | cat = newCat }
-    , renderGraph model.showIdentities newCat
+    , renderGraph model.viewConfig newCat
     )
 
 
@@ -120,7 +134,7 @@ view model =
     Html.div []
         [ Html.div [ A.id "top-container" ]
             [ Html.div [ A.id "controls" ]
-                [ viewObjectControls model.cat
+                [ viewObjectControls model
                 , viewHomSetTable model
                 , viewCompositionTable model
                 ]
@@ -132,15 +146,31 @@ view model =
         ]
 
 
-viewObjectControls : Category -> Html Msg
-viewObjectControls cat =
+viewObjectControls : Model -> Html Msg
+viewObjectControls { cat, viewConfig } =
     Html.div []
         [ Html.h2 [] [ Html.text "Category" ]
         , Html.label []
-            [ Html.input [ A.type_ "checkbox", E.onClick ToggleShowIdentities ] []
+            [ Html.input
+                [ A.type_ "checkbox"
+                , E.onClick ToggleShowIdentities
+                , A.checked viewConfig.showIdentities
+                , A.id "show-ids"
+                ]
+                []
 
             -- TODO add info icon explaining what this does (hiding identities from composition table, hom sets and graph, but not from composition table results!)
             , Html.text " Show Identities"
+            ]
+        , Html.label []
+            [ Html.input
+                [ A.type_ "checkbox"
+                , E.onClick ToggleColorObjects
+                , A.checked viewConfig.colorObjects
+                , A.id "color-objs"
+                ]
+                []
+            , Html.text " Color Objects"
             ]
         , Html.h3 [] [ Html.text "Objects" ]
         , Html.button [ E.onClick AddObject ] [ Html.text "Add object" ]
@@ -158,7 +188,7 @@ viewObjectControls cat =
 
 
 viewHomSetTable : Model -> Html Msg
-viewHomSetTable { cat, editState, showIdentities } =
+viewHomSetTable { cat, editState, viewConfig } =
     let
         objects =
             Dict.toList cat.objects
@@ -172,18 +202,21 @@ viewHomSetTable { cat, editState, showIdentities } =
                 let
                     homSets =
                         Cat.getHomSets cat
+
+                    headerCell =
+                        objHeaderCell viewConfig.colorObjects
                 in
                 Html.table []
                     [ Html.thead []
                         [ Html.tr [] <|
                             Html.th [] [{- empty top-left corner -}]
-                                :: List.map objHeaderCell objects
+                                :: List.map headerCell objects
                         ]
                     , Html.tbody [] <|
                         List.map
                             (\( domId, domObj ) ->
                                 Html.tr [] <|
-                                    objHeaderCell ( domId, domObj )
+                                    headerCell ( domId, domObj )
                                         :: List.map
                                             (\( codId, _ ) ->
                                                 let
@@ -194,7 +227,7 @@ viewHomSetTable { cat, editState, showIdentities } =
                                                         A.class "m-cell"
 
                                                     addIdMorphism =
-                                                        if showIdentities && domId == codId then
+                                                        if viewConfig.showIdentities && domId == codId then
                                                             (::) (idMorphism domObj.label)
 
                                                         else
@@ -271,10 +304,10 @@ viewHomSetTable { cat, editState, showIdentities } =
 
 
 viewCompositionTable : Model -> Html Msg
-viewCompositionTable { cat, showIdentities } =
+viewCompositionTable { cat, viewConfig } =
     let
         morphs =
-            Cat.listComposableMorphisms showIdentities cat
+            Cat.listComposableMorphisms viewConfig.showIdentities cat
 
         getObjLabel objId =
             Maybe.withDefault "TODO???" <| Maybe.map .label <| Dict.get objId cat.objects
@@ -286,7 +319,7 @@ viewCompositionTable { cat, showIdentities } =
             if List.isEmpty morphs.rows || List.isEmpty morphs.columns then
                 Html.div []
                     [ Html.text <|
-                        if showIdentities then
+                        if viewConfig.showIdentities then
                             "There are no composable morphisms"
 
                         else
@@ -411,7 +444,7 @@ viewCompositionTable { cat, showIdentities } =
         associativityDetails =
             let
                 assocCheck =
-                    Cat.checkAssociativity showIdentities cat
+                    Cat.checkAssociativity viewConfig.showIdentities cat
             in
             Html.details []
                 [ Html.summary [] [ Html.text "Associativity" ]
@@ -512,7 +545,16 @@ morphism name sub =
     Html.span [] [ Html.text name, Html.sub [] [ Html.text sub ] ]
 
 
-objHeaderCell : ( Int, Cat.Obj ) -> Html msg
-objHeaderCell ( _, obj ) =
-    Html.th [ A.style "background-color" (Color.toRGBString obj.color) ]
+objHeaderCell : Bool -> ( Int, Cat.Obj ) -> Html msg
+objHeaderCell colorObjects ( _, obj ) =
+    let
+        attrs =
+            if colorObjects then
+                [ A.style "background-color" (Color.toRGBString obj.color) ]
+
+            else
+                []
+    in
+    Html.th
+        attrs
         [ Html.text obj.label ]

@@ -4,6 +4,7 @@ module Category exposing
     , Morphism(..)
     , NotAssociativeWitness
     , Obj
+    , ViewConfig
     , addMorphism
     , addObject
     , checkAssociativity
@@ -17,6 +18,8 @@ module Category exposing
     , listComposableMorphisms
     , renderDotString
     , setObjectLabel
+    , toggleColorObjects
+    , toggleShowIdentities
     , undefineComposition
     )
 
@@ -56,6 +59,22 @@ type alias Obj =
     { label : String
     , color : SolidColor
     }
+
+
+type alias ViewConfig =
+    { showIdentities : Bool
+    , colorObjects : Bool
+    }
+
+
+toggleShowIdentities : ViewConfig -> ViewConfig
+toggleShowIdentities cfg =
+    { cfg | showIdentities = not cfg.showIdentities }
+
+
+toggleColorObjects : ViewConfig -> ViewConfig
+toggleColorObjects cfg =
+    { cfg | colorObjects = not cfg.colorObjects }
 
 
 getDomId : Morphism -> Int
@@ -417,11 +436,19 @@ triples xs =
         xs
 
 
-node : Int -> Obj -> Dot.Stmt
-node objId obj =
+node : Bool -> Int -> Obj -> Dot.Stmt
+node colorObjects objId obj =
     Dot.NodeStmt (nodeId objId)
         [ labelAttr (Dot.ID obj.label)
-        , Dot.Attr (Dot.ID "fillcolor") (Dot.ID (Color.toHex obj.color))
+        , Dot.Attr (Dot.ID "fillcolor")
+            (Dot.ID
+                (if colorObjects then
+                    Color.toHex obj.color
+
+                 else
+                    "white"
+                )
+            )
         ]
 
 
@@ -435,14 +462,14 @@ nodeId ojbId =
     Dot.NodeId (Dot.NumeralID (toFloat ojbId)) Nothing
 
 
-renderDot : Bool -> Category -> Dot.Dot
-renderDot showIdentities cat =
+renderDot : ViewConfig -> Category -> Dot.Dot
+renderDot { showIdentities, colorObjects } cat =
     let
         objList =
             Dict.toList cat.objects
 
         nodeStatements =
-            List.map (\( objId, obj ) -> node objId obj) objList
+            List.map (\( objId, obj ) -> node colorObjects objId obj) objList
 
         htmlLabelWithSub str sub =
             Dot.HtmlID
@@ -519,7 +546,7 @@ renderDot showIdentities cat =
         )
 
 
-renderDotString : Bool -> Category -> String
-renderDotString showIdentities cat =
-    renderDot showIdentities cat
+renderDotString : ViewConfig -> Category -> String
+renderDotString viewConfig cat =
+    renderDot viewConfig cat
         |> Dot.toStringWithConfig Dot.OneLine
