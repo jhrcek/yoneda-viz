@@ -69,7 +69,6 @@ type Msg
     | ToggleColorObjects
     | UndefineComposition Int Int
     | DefineComposition Int Int Int
-    | NoOp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -103,9 +102,6 @@ update msg model =
 
         UndefineComposition morphId1 morphId2 ->
             updateCat (Cat.undefineComposition morphId1 morphId2) model
-
-        NoOp ->
-            ( model, Cmd.none )
 
 
 updateViewConfig : (ViewConfig -> ViewConfig) -> Model -> ( Model, Cmd Msg )
@@ -413,7 +409,20 @@ viewCompositionTable { cat, viewConfig } =
                                                                                 Dict.get ( morphId1, morphId2 ) cat.composition
 
                                                                             unfedOption =
-                                                                                Html.option [ A.selected <| composition == Nothing ] [ Html.text "?" ]
+                                                                                Html.option [ A.selected <| composition == Nothing ]
+                                                                                    [ Html.text <|
+                                                                                        "<"
+                                                                                            ++ String.fromInt
+                                                                                                (Set.size homSet
+                                                                                                    + (if isIdentityAvailable then
+                                                                                                        1
+
+                                                                                                       else
+                                                                                                        0
+                                                                                                      )
+                                                                                                )
+                                                                                            ++ ">"
+                                                                                    ]
 
                                                                             addIdentity =
                                                                                 if isIdentityAvailable then
@@ -440,17 +449,12 @@ viewCompositionTable { cat, viewConfig } =
                                                                             [ Html.select
                                                                                 [ E.onInput <|
                                                                                     \str ->
-                                                                                        case str of
-                                                                                            "?" ->
+                                                                                        case String.toInt str of
+                                                                                            Just morphId ->
+                                                                                                DefineComposition morphId1 morphId2 morphId
+
+                                                                                            Nothing ->
                                                                                                 UndefineComposition morphId1 morphId2
-
-                                                                                            s ->
-                                                                                                case String.toInt s of
-                                                                                                    Just morphId ->
-                                                                                                        DefineComposition morphId1 morphId2 morphId
-
-                                                                                                    Nothing ->
-                                                                                                        NoOp
                                                                                 ]
                                                                               <|
                                                                                 unfedOption
@@ -489,6 +493,8 @@ viewCompositionTable { cat, viewConfig } =
     Html.div []
         [ Html.h3 [] [ Html.text "Composition" ]
         , compositionTable
+
+        -- TODO add a button here, that fills in the "forced" compositions (where there's only one choice in the dropdown)
         , associativityDetails
         ]
 
