@@ -32,6 +32,7 @@ type alias Model =
 type EditState
     = NotEditing
     | EditingHomSet Int Int
+    | EditingObjects
 
 
 init : () -> ( Model, Cmd Msg )
@@ -144,7 +145,7 @@ view model =
 
 
 viewObjectControls : Model -> Html Msg
-viewObjectControls { cat, viewConfig } =
+viewObjectControls { cat, viewConfig, editState } =
     Html.div []
         [ Html.h2 [] [ Html.text "Category" ]
         , Html.label []
@@ -174,17 +175,36 @@ viewObjectControls { cat, viewConfig } =
             , Html.text "Color Objects"
             ]
         , Html.h3 [] [ Html.text "Objects" ]
-        , Html.button [ E.onClick AddObject ] [ Html.text "Add object" ]
-        , cat.objects
-            |> Dict.toList
-            |> List.map
-                (\( objId, obj ) ->
-                    Html.li []
-                        [ Html.span [] [ Html.text obj.label ] -- TODO make this editable
-                        , Html.button [ E.onClick (DeleteObject objId) ] [ Html.text "🗙" ]
-                        ]
-                )
-            |> Html.ul []
+        , Html.div
+            [ E.onMouseEnter (SetEditState EditingObjects)
+            , E.onMouseLeave (SetEditState NotEditing)
+            ]
+            [ let
+                viewObj ( objId, obj ) =
+                    case editState of
+                        EditingObjects ->
+                            Html.span []
+                                [ Html.span [] [ Html.text obj.label ] -- TODO make this editable
+                                , Html.button [ E.onClick (DeleteObject objId) ] [ Html.text "🗙" ]
+                                ]
+
+                        _ ->
+                            Html.span [] [ Html.text obj.label ]
+              in
+              cat.objects
+                |> Dict.toList
+                |> List.map viewObj
+                |> List.intersperse (Html.text ", ")
+                |> (\items ->
+                        if List.isEmpty items then
+                            [ Html.text "ob(C) =  ∅" ]
+
+                        else
+                            Html.text "ob(C) = {" :: items ++ [ Html.text "}" ]
+                   )
+                |> Html.div [ A.class "object-editor" ]
+            , Html.button [ E.onClick AddObject ] [ Html.text "Add object" ]
+            ]
         ]
 
 
@@ -287,6 +307,9 @@ viewHomSetTable { cat, editState, viewConfig } =
 
                                                                 else
                                                                     staticCell
+
+                                                            EditingObjects ->
+                                                                staticCell
 
                                                             NotEditing ->
                                                                 staticCell

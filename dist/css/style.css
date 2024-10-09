@@ -60,3 +60,9 @@ a:visited {
         right: 0px;
     }
 }
+
+.object-editor {
+    display: flex;
+    align-items: center;
+    height: 30px;
+}
